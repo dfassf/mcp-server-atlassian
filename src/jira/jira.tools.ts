@@ -612,10 +612,8 @@ export class JiraToolsService {
     });
     const { issueKey, targetIssueKey, linkType } = schema.parse(args);
 
-    // 이슈의 링크 목록 조회
     const links = await this.jiraService.getIssueLinks(issueKey);
 
-    // 타겟 이슈와의 링크 찾기
     const matchingLinks = links.filter((link) => {
       const isTargetMatch =
         link.inwardIssue?.key === targetIssueKey ||
@@ -633,7 +631,6 @@ export class JiraToolsService {
       );
     }
 
-    // 링크 삭제
     for (const link of matchingLinks) {
       await this.jiraService.removeIssueLink(link.id);
     }
@@ -643,12 +640,7 @@ export class JiraToolsService {
     );
   }
 
-  /**
-   * 이메일 또는 accountId를 받아서 accountId를 반환
-   * 이메일 형식이면 검색해서 accountId를 찾고, 아니면 그대로 반환
-   */
   private async resolveAccountId(assignee: string): Promise<string> {
-    // 이메일 형식인지 확인
     if (assignee.includes('@')) {
       const users = await this.jiraService.searchUsers(assignee);
       if (users.length === 0) {
@@ -656,7 +648,6 @@ export class JiraToolsService {
       }
       return users[0].accountId;
     }
-    // 이미 accountId인 경우 그대로 반환
     return assignee;
   }
 

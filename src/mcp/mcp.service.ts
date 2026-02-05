@@ -18,7 +18,6 @@ export class McpService implements OnModuleInit {
   constructor(private moduleRef: ModuleRef) {}
 
   async onModuleInit() {
-    // 서비스 주입 (순환 의존성 방지)
     this.jiraTools = this.moduleRef.get(JiraToolsService, { strict: false });
     this.confluenceTools = this.moduleRef.get(ConfluenceToolsService, { strict: false });
   }
@@ -43,7 +42,6 @@ export class McpService implements OnModuleInit {
   }
 
   private registerHandlers() {
-    // 도구 목록 핸들러
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       const tools = [
         ...this.jiraTools.getTools(),
@@ -52,17 +50,14 @@ export class McpService implements OnModuleInit {
       return { tools };
     });
 
-    // 도구 실행 핸들러
     this.server.setRequestHandler(CallToolRequestSchema, async (request: { params: { name: string; arguments?: unknown } }) => {
       const { name, arguments: args } = request.params;
 
       let result;
 
-      // Jira 도구
       if (name.startsWith('jira_')) {
         result = await this.jiraTools.executeTool(name, args);
       }
-      // Confluence 도구
       else if (name.startsWith('confluence_')) {
         result = await this.confluenceTools.executeTool(name, args);
       }

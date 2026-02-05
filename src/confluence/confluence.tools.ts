@@ -199,7 +199,6 @@ export class ConfluenceToolsService {
     });
     const { pageId, title, content } = schema.parse(args);
 
-    // 현재 버전 조회
     const currentPage = await this.confluenceService.getPage(pageId);
     const currentVersion = currentPage.version?.number || 1;
 

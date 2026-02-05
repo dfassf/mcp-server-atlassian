@@ -11,10 +11,9 @@ async function bootstrap() {
     logger.log('Starting MCP server...');
     
     const app = await NestFactory.createApplicationContext(AppModule, {
-      logger: false, // 커스텀 로거 사용
+      logger: false,
     });
 
-    // 커스텀 로거를 앱에 주입
     app.useLogger(logger);
 
     const mcpService = app.get(McpService);

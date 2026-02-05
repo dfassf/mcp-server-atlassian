@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import axios, { AxiosError, AxiosInstance } from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { AtlassianHttpService } from './atlassian-http.service';
 import configuration from '../config/configuration';
 
@@ -112,7 +112,6 @@ describe('AtlassianHttpService', () => {
         if (key === 'jira.apiToken') return 'token123';
         return undefined;
       });
-      // 클라이언트 재초기화
       (service as unknown as { initializeClients: () => void }).initializeClients();
     });
 
@@ -136,7 +135,6 @@ describe('AtlassianHttpService', () => {
         if (key === 'jira.apiToken') return 'token123';
         return undefined;
       });
-      // 클라이언트 재초기화
       (service as unknown as { initializeClients: () => void }).initializeClients();
     });
 
@@ -176,13 +174,10 @@ describe('AtlassianHttpService', () => {
       expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/test', undefined);
     });
 
-    // Note: 인터셉터 테스트는 실제 axios 인스턴스가 필요하므로 통합 테스트에서 수행
     it.skip('should handle API errors with proper message', async () => {
-      // 인터셉터는 실제 axios 인스턴스에서만 작동하므로 통합 테스트에서 검증 필요
     });
 
     it.skip('should handle network errors', async () => {
-      // 인터셉터는 실제 axios 인스턴스에서만 작동하므로 통합 테스트에서 검증 필요
     });
   });
 });

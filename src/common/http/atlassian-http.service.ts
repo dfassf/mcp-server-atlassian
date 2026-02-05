@@ -13,7 +13,6 @@ export class AtlassianHttpService {
   }
 
   initializeClients() {
-    // Jira 클라이언트
     const jiraUrl = this.configService.get<string>('jira.url');
     const jiraUsername = this.configService.get<string>('jira.username');
     const jiraToken = this.configService.get<string>('jira.apiToken');
@@ -23,7 +22,6 @@ export class AtlassianHttpService {
       this.clients.set('jira', this.createClient(jiraUrl, jiraUsername, jiraToken, jiraPersonalToken));
     }
 
-    // Confluence 클라이언트
     const confluenceUrl = this.configService.get<string>('confluence.url');
     const confluenceUsername = this.configService.get<string>('confluence.username');
     const confluenceToken = this.configService.get<string>('confluence.apiToken');
@@ -45,11 +43,9 @@ export class AtlassianHttpService {
       'Accept': 'application/json',
     };
 
-    // PAT (Personal Access Token) 우선
     if (personalToken) {
       headers['Authorization'] = `Bearer ${personalToken}`;
     } else if (username && apiToken) {
-      // Basic Auth (Cloud)
       const auth = Buffer.from(`${username}:${apiToken}`).toString('base64');
       headers['Authorization'] = `Basic ${auth}`;
     } else {
@@ -62,20 +58,16 @@ export class AtlassianHttpService {
       timeout: 30000,
     });
 
-    // 에러 인터셉터 추가
     client.interceptors.response.use(
       (response) => response,
       (error) => {
         if (error.response) {
-          // API 에러 응답
           const status = error.response.status;
           const message = error.response.data?.errorMessages?.[0] || error.response.data?.message || error.message;
           throw new Error(`API Error (${status}): ${message}`);
         } else if (error.request) {
-          // 요청은 보냈지만 응답을 받지 못함
           throw new Error(`Network Error: No response received from ${baseUrl}`);
         } else {
-          // 요청 설정 중 에러
           throw new Error(`Request Error: ${error.message}`);
         }
       },

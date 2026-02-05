@@ -185,13 +185,11 @@ describe('JiraToolsService', () => {
     });
 
     it('should handle errors gracefully', async () => {
-      // 에러를 mock하기 전에 먼저 설정
       const errorMessage = 'API Error';
       jiraService.search.mockImplementationOnce(() => {
         return Promise.reject(new Error(errorMessage));
       });
 
-      // executeTool은 try-catch로 에러를 잡아서 ToolResult로 반환하므로 에러가 throw되지 않음
       const result = await service.executeTool('jira_search', { jql: 'invalid' });
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Error');

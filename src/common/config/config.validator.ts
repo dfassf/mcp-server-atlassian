@@ -8,7 +8,6 @@ export class ConfigValidator {
   validate(): void {
     const errors: string[] = [];
 
-    // Jira 설정 검증
     const jiraUrl = this.configService.get<string>('jira.url');
     const jiraUsername = this.configService.get<string>('jira.username');
     const jiraApiToken = this.configService.get<string>('jira.apiToken');
@@ -20,7 +19,6 @@ export class ConfigValidator {
       }
     }
 
-    // Confluence 설정 검증
     const confluenceUrl = this.configService.get<string>('confluence.url');
     const confluenceUsername = this.configService.get<string>('confluence.username');
     const confluenceApiToken = this.configService.get<string>('confluence.apiToken');
@@ -32,7 +30,6 @@ export class ConfigValidator {
       }
     }
 
-    // 최소 하나의 서비스는 설정되어야 함
     if (!jiraUrl && !confluenceUrl) {
       errors.push('At least one service (Jira or Confluence) must be configured');
     }

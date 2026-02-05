@@ -47,7 +47,7 @@ export class LoggerService implements NestLoggerService {
         console.warn(logMessage);
         break;
       case LogLevel.DEBUG:
-        // 개발 환경에서만 출력
+
         if (process.env.NODE_ENV !== 'production') {
           console.debug(logMessage);
         }

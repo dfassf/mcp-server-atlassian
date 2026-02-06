@@ -16,22 +16,22 @@ export class LoggerService implements NestLoggerService {
   }
 
   error(message: string, trace?: string, context?: string): void {
-    this.log(LogLevel.ERROR, message, context, trace);
+    this.logInternal(LogLevel.ERROR, message, context, trace);
   }
 
   warn(message: string, context?: string): void {
-    this.log(LogLevel.WARN, message, context);
+    this.logInternal(LogLevel.WARN, message, context);
   }
 
   log(message: string, context?: string): void {
-    this.log(LogLevel.LOG, message, context);
+    this.logInternal(LogLevel.LOG, message, context);
   }
 
   debug(message: string, context?: string): void {
-    this.log(LogLevel.DEBUG, message, context);
+    this.logInternal(LogLevel.DEBUG, message, context);
   }
 
-  private log(level: LogLevel, message: string, context?: string, trace?: string): void {
+  private logInternal(level: LogLevel, message: string, context?: string, trace?: string): void {
     const ctx = context || this.context || 'Application';
     const timestamp = new Date().toISOString();
     const logMessage = `[${timestamp}] [${level.toUpperCase()}] [${ctx}] ${message}`;

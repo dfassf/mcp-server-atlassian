@@ -1,17 +1,15 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
 import { JiraToolsService } from '../jira/jira.tools';
 import { ConfluenceToolsService } from '../confluence/confluence.tools';
+import { SchemaConverter } from '../common/utils/schema-converter.util';
+import { ToolResultUtil } from '../common/utils/tool-result.util';
 
 @Injectable()
 export class McpService implements OnModuleInit {
-  private server: Server;
+  private server: McpServer;
   private jiraTools: JiraToolsService;
   private confluenceTools: ConfluenceToolsService;
 
@@ -23,7 +21,7 @@ export class McpService implements OnModuleInit {
   }
 
   async start() {
-    this.server = new Server(
+    this.server = new McpServer(
       {
         name: 'local-mcp-atlassian',
         version: '0.1.0',
@@ -35,40 +33,35 @@ export class McpService implements OnModuleInit {
       },
     );
 
-    this.registerHandlers();
+    this.registerTools();
 
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
   }
 
-  private registerHandlers() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      const tools = [
-        ...this.jiraTools.getTools(),
-        ...this.confluenceTools.getTools(),
-      ];
-      return { tools };
-    });
+  private registerTools() {
+    const jiraTools = this.jiraTools.getTools();
+    for (const tool of jiraTools) {
+      const zodSchema = SchemaConverter.jsonSchemaToZod(tool.inputSchema);
+      this.server.registerTool(tool.name, {
+        description: tool.description,
+        inputSchema: zodSchema,
+      }, async (args) => {
+        const toolResult = await this.jiraTools.executeTool(tool.name, args);
+        return ToolResultUtil.toCallToolResult(toolResult);
+      });
+    }
 
-    this.server.setRequestHandler(CallToolRequestSchema, async (request: { params: { name: string; arguments?: unknown } }) => {
-      const { name, arguments: args } = request.params;
-
-      let result;
-
-      if (name.startsWith('jira_')) {
-        result = await this.jiraTools.executeTool(name, args);
-      }
-      else if (name.startsWith('confluence_')) {
-        result = await this.confluenceTools.executeTool(name, args);
-      }
-      else {
-        result = {
-          content: [{ type: 'text' as const, text: `Unknown tool: ${name}` }],
-          isError: true,
-        };
-      }
-
-      return result;
-    });
+    const confluenceTools = this.confluenceTools.getTools();
+    for (const tool of confluenceTools) {
+      const zodSchema = SchemaConverter.jsonSchemaToZod(tool.inputSchema);
+      this.server.registerTool(tool.name, {
+        description: tool.description,
+        inputSchema: zodSchema,
+      }, async (args) => {
+        const toolResult = await this.confluenceTools.executeTool(tool.name, args);
+        return ToolResultUtil.toCallToolResult(toolResult);
+      });
+    }
   }
 }

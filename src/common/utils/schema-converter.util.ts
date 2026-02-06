@@ -13,6 +13,8 @@ export interface JsonSchema {
   required?: string[];
 }
 
+export type { JsonSchema as JsonSchemaType };
+
 export class SchemaConverter {
   static jsonSchemaToZod(jsonSchema: JsonSchema): ZodRawShapeCompat {
     const shape: Record<string, AnySchema> = {};

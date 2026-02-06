@@ -178,6 +178,49 @@ npm run test
 
 ## 아키텍처
 
+### 시스템 아키텍처 다이어그램
+
+```mermaid
+graph TB
+    subgraph "AI 어시스턴트"
+        Claude[Claude Desktop]
+        Cursor[Cursor AI]
+    end
+    
+    subgraph "MCP 서버"
+        MCP[McpService<br/>MCP Server]
+        Tools[Tools Registry<br/>24개 도구]
+    end
+    
+    subgraph "도구 레이어"
+        JiraTools[JiraToolsService<br/>18개 도구]
+        ConfluenceTools[ConfluenceToolsService<br/>6개 도구]
+    end
+    
+    subgraph "서비스 레이어"
+        JiraService[JiraService<br/>API 클라이언트]
+        ConfluenceService[ConfluenceService<br/>API 클라이언트]
+        HttpService[AtlassianHttpService<br/>HTTP + 인증 + 에러 핸들링]
+    end
+    
+    subgraph "Atlassian Cloud"
+        JiraAPI[Jira REST API]
+        ConfluenceAPI[Confluence REST API]
+    end
+    
+    Claude -->|STDIO| MCP
+    Cursor -->|STDIO| MCP
+    MCP --> Tools
+    Tools --> JiraTools
+    Tools --> ConfluenceTools
+    JiraTools --> JiraService
+    ConfluenceTools --> ConfluenceService
+    JiraService --> HttpService
+    ConfluenceService --> HttpService
+    HttpService -->|HTTPS| JiraAPI
+    HttpService -->|HTTPS| ConfluenceAPI
+```
+
 ### 프로젝트 구조
 
 ```

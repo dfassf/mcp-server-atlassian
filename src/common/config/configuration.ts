@@ -15,4 +15,9 @@ export default () => ({
     transport: process.env.MCP_TRANSPORT || 'stdio',
   },
   logLevel: process.env.LOG_LEVEL || 'info',
+  http: {
+    timeout: parseInt(process.env.HTTP_TIMEOUT || '30000', 10),
+    maxRetries: parseInt(process.env.HTTP_MAX_RETRIES || '3', 10),
+    retryDelay: parseInt(process.env.HTTP_RETRY_DELAY || '1000', 10),
+  },
 });

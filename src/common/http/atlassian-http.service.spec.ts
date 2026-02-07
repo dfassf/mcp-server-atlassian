@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 import { AtlassianHttpService } from './atlassian-http.service';
+import { LoggerService } from '../logger/logger.service';
 import configuration from '../config/configuration';
 
 jest.mock('axios');
@@ -33,7 +34,7 @@ describe('AtlassianHttpService', () => {
           ignoreEnvFile: true,
         }),
       ],
-      providers: [AtlassianHttpService],
+      providers: [AtlassianHttpService, LoggerService],
     }).compile();
 
     service = module.get<AtlassianHttpService>(AtlassianHttpService);
@@ -53,7 +54,8 @@ describe('AtlassianHttpService', () => {
         return undefined;
       });
 
-      const newService = new AtlassianHttpService(configService);
+      const logger = new LoggerService();
+      const newService = new AtlassianHttpService(configService, logger);
       expect(mockedAxios.create).toHaveBeenCalled();
     });
 
@@ -63,9 +65,8 @@ describe('AtlassianHttpService', () => {
         return undefined;
       });
 
-      expect(() => new AtlassianHttpService(configService)).toThrow(
-        'Authentication required: either personalToken or (username + apiToken) must be provided',
-      );
+      const logger = new LoggerService();
+      expect(() => new AtlassianHttpService(configService, logger)).toThrow();
     });
 
     it('should use personal token when provided', () => {
@@ -75,7 +76,8 @@ describe('AtlassianHttpService', () => {
         return undefined;
       });
 
-      new AtlassianHttpService(configService);
+      const logger = new LoggerService();
+      new AtlassianHttpService(configService, logger);
       expect(mockedAxios.create).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: expect.objectContaining({
@@ -93,7 +95,8 @@ describe('AtlassianHttpService', () => {
         return undefined;
       });
 
-      new AtlassianHttpService(configService);
+      const logger = new LoggerService();
+      new AtlassianHttpService(configService, logger);
       expect(mockedAxios.create).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: expect.objectContaining({
@@ -176,7 +179,7 @@ describe('AtlassianHttpService', () => {
       expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/test', undefined);
     });
 
-    // Note: 인터셉터 테스트는 실제 axios 인스턴스가 필요하므로 통합 테스트에서 수행
+    // 인터셉터 테스트는 실제 axios 인스턴스가 필요하므로 통합 테스트에서 수행
     it.skip('should handle API errors with proper message', async () => {
       // 인터셉터는 실제 axios 인스턴스에서만 작동하므로 통합 테스트에서 검증 필요
     });

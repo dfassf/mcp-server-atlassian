@@ -141,4 +141,58 @@ export class JiraService {
     });
     return issue.fields.issuelinks || [];
   }
+
+  // 지라API는 최대 50개까지 지원
+  async bulkCreateIssues(
+    issueUpdates: { fields: Record<string, unknown> }[],
+  ): Promise<{ issues: JiraIssue[]; errors: unknown[] }> {
+    return this.http.post('jira', '/rest/api/3/issue/bulk', { issueUpdates });
+  }
+
+  async getCurrentUser(): Promise<{ accountId: string; displayName: string; emailAddress?: string }> {
+    return this.http.get('jira', '/rest/api/3/myself');
+  }
+
+  async getBoards(projectKeyOrId?: string): Promise<{ values: { id: number; name: string; type: string }[] }> {
+    const params: Record<string, string> = {};
+    if (projectKeyOrId) params.projectKeyOrId = projectKeyOrId;
+    return this.http.get('jira', '/rest/agile/1.0/board', { params });
+  }
+
+  async getSprints(boardId: number, state?: string): Promise<{ values: { id: number; name: string; state: string; startDate?: string; endDate?: string }[] }> {
+    const params: Record<string, string> = {};
+    if (state) params.state = state;
+    return this.http.get('jira', `/rest/agile/1.0/board/${boardId}/sprint`, { params });
+  }
+
+  async getSprintIssues(sprintId: number): Promise<{ issues: JiraIssue[] }> {
+    return this.http.get('jira', `/rest/agile/1.0/sprint/${sprintId}/issue`, {
+      params: { fields: 'summary,status,assignee,priority,issuetype' },
+    });
+  }
+
+  async moveIssuesToSprint(sprintId: number, issueKeys: string[]): Promise<void> {
+    await this.http.post('jira', `/rest/agile/1.0/sprint/${sprintId}/issue`, {
+      issues: issueKeys,
+    });
+  }
+
+  async getWorklogs(issueKey: string): Promise<{ worklogs: { id: string; author: { displayName: string }; timeSpent: string; started: string; comment?: unknown }[] }> {
+    return this.http.get('jira', `/rest/api/3/issue/${issueKey}/worklog`);
+  }
+
+  async addWorklog(issueKey: string, timeSpentSeconds: number, started: string, comment?: string): Promise<void> {
+    const body: Record<string, unknown> = {
+      timeSpentSeconds,
+      started,
+    };
+    if (comment) {
+      body.comment = {
+        type: 'doc',
+        version: 1,
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: comment }] }],
+      };
+    }
+    await this.http.post('jira', `/rest/api/3/issue/${issueKey}/worklog`, body);
+  }
 }

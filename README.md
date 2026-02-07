@@ -4,20 +4,20 @@ NestJS 기반 MCP(Model Context Protocol) 서버 - Jira & Confluence 연동
 
 ## 개요
 
-Claude, Cursor AI 등 AI 어시스턴트가 Jira/Confluence와 직접 연동할 수 있도록 해주는 MCP(Model Context Protocol) 서버입니다. 검증된 오픈소스 프로젝트도 있으나 혹시 모를 보안 문제 때문에 자체적으로 구현했습니다. 기능 종류는 오픈소스 프로젝트들을 취합하였습니다.
+Claude Desktop, 로컬 AI Agent 등 AI 어시스턴트가 Jira/Confluence와 직접 연동할 수 있도록 해주는 MCP(Model Context Protocol) 서버입니다. 검증된 오픈소스 프로젝트도 있으나 혹시 모를 보안 문제 때문에 자체적으로 구현했습니다. 기능 종류는 오픈소스 프로젝트들을 취합하였습니다.
 
 ### MCP 서버란?
 
 MCP(Model Context Protocol)는 AI 어시스턴트가 외부 시스템과 상호작용할 수 있도록 하는 표준 프로토콜입니다. 이 서버는 MCP SDK를 사용하여 Jira와 Confluence API를 도구(Tools)로 노출시킵니다.
 
 **작동 방식:**
-1. AI 어시스턴트(Claude Desktop, Cursor 등)가 MCP 서버에 연결
+1. AI 어시스턴트(Claude Desktop, 로컬 AI Agent 등)가 MCP 서버에 연결
 2. 서버는 사용 가능한 도구 목록을 제공 (예: `jira_search`, `jira_create_issue` 등)
 3. AI가 사용자 요청에 따라 적절한 도구를 호출
 4. 서버는 Atlassian API를 호출하고 결과를 AI에게 반환
 
 **제공하는 도구:**
-- **Jira 도구 18개**: 이슈 검색/생성/수정/삭제, 상태 변경, 댓글 관리, 이슈 연결, 메타데이터 조회 등
+- **Jira 도구 29개**: 이슈 검색/생성/수정/삭제, 상태 변경, 댓글 관리, 이슈 연결, 메타데이터 조회, 대량 생성, Agile 보드/스프린트 관리, 작업 로그, 이슈 복제 등
 - **Confluence 도구 6개**: 페이지 검색/생성/수정/삭제, 댓글 조회 등
 
 이를 통해 AI 어시스턴트가 자연어로 "PROJ-123 이슈를 진행 중으로 변경해줘"라고 요청하면, 서버가 자동으로 해당 이슈의 상태를 변경할 수 있습니다.
@@ -61,6 +61,27 @@ cp .env.example .env
 | `jira_get_issue_types` | 이슈 타입 목록 (Task, Bug, Story 등) |
 | `jira_get_priorities` | 우선순위 목록 (Highest~Lowest) |
 | `jira_get_transitions` | 이슈별 가능한 상태 전환 목록 |
+
+### Jira - 대량 작업 및 Agile
+
+| 도구 | 설명 |
+|------|------|
+| `jira_bulk_create_issues` | 이슈 대량 생성 (최대 50개) |
+| `jira_get_my_issues` | 현재 사용자에게 할당된 이슈 조회 |
+| `jira_get_boards` | Scrum/Kanban 보드 목록 조회 |
+| `jira_get_sprints` | 보드의 스프린트 목록 조회 |
+| `jira_get_sprint_issues` | 스프린트 내 이슈 조회 |
+| `jira_move_to_sprint` | 이슈를 스프린트로 이동 |
+
+### Jira - 작업 로그 및 유틸리티
+
+| 도구 | 설명 |
+|------|------|
+| `jira_get_worklog` | 이슈의 작업 로그 조회 |
+| `jira_log_work` | 작업 시간 기록 |
+| `jira_get_project_summary` | 프로젝트 요약 (상태별 이슈 수) |
+| `jira_clone_issue` | 이슈 복제 |
+| `jira_assign_to_me` | 이슈를 현재 사용자에게 할당 |
 
 ### Confluence (보류 - 유료 전환 후 테스트 예정)
 
@@ -115,9 +136,9 @@ CONFLUENCE_API_TOKEN=your_api_token
    - 도구 목록 및 실행 핸들러 등록
 
 2. **도구 등록**:
-   - Jira 도구: `JiraToolsService.getTools()`로 18개 도구 제공
+   - Jira 도구: `JiraToolsService.getTools()`로 29개 도구 제공
    - Confluence 도구: `ConfluenceToolsService.getTools()`로 6개 도구 제공
-   - 총 24개 도구를 AI 어시스턴트에 노출
+   - 총 35개 도구를 AI 어시스턴트에 노출
 
 3. **도구 실행**:
    - AI가 도구 호출 요청 시 `CallToolRequestSchema` 핸들러가 실행
@@ -184,16 +205,16 @@ npm run test
 graph TB
     subgraph "AI 어시스턴트"
         Claude[Claude Desktop]
-        Cursor[Cursor AI]
+        LocalAI[로컬 AI Agent]
     end
     
     subgraph "MCP 서버"
         MCP[McpService<br/>MCP Server]
-        Tools[Tools Registry<br/>24개 도구]
+        Tools[Tools Registry<br/>35개 도구]
     end
     
     subgraph "도구 레이어"
-        JiraTools[JiraToolsService<br/>18개 도구]
+        JiraTools[JiraToolsService<br/>29개 도구]
         ConfluenceTools[ConfluenceToolsService<br/>6개 도구]
     end
     
@@ -209,7 +230,7 @@ graph TB
     end
     
     Claude -->|STDIO| MCP
-    Cursor -->|STDIO| MCP
+    LocalAI -->|STDIO| MCP
     MCP --> Tools
     Tools --> JiraTools
     Tools --> ConfluenceTools
@@ -237,7 +258,8 @@ src/
 │   ├── confluence.tools.ts
 │   └── confluence.module.ts
 ├── common/                 # 공통 모듈
-│   ├── http/               # HTTP 클라이언트 (인증, 에러 핸들링)
+│   ├── http/               # HTTP 클라이언트 (인증, 재시도, 에러 핸들링)
+│   ├── errors/             # 커스텀 예외 클래스
 │   ├── config/             # 설정 및 검증
 │   ├── logger/             # 구조화된 로깅
 │   └── utils/              # 유틸리티 함수
@@ -254,7 +276,9 @@ src/
 2. **HTTP Service** (`src/common/http/atlassian-http.service.ts`):
    - Axios 기반 HTTP 클라이언트
    - Basic Auth 및 Personal Access Token 지원
-   - 에러 인터셉터를 통한 사용자 친화적 에러 메시지 변환
+   - 자동 재시도 로직 (지수 백오프, Retry-After 헤더 지원)
+   - 요청/응답 로깅 인터셉터
+   - 커스텀 예외 클래스를 통한 표준화된 에러 처리
 
 3. **Tools Services** (`src/jira/jira.tools.ts`, `src/confluence/confluence.tools.ts`):
    - 각 도구의 스키마 정의 및 실행 로직 구현
@@ -268,7 +292,7 @@ src/
 - **@modelcontextprotocol/sdk**: MCP 프로토콜 구현
 - **Zod**: 런타임 스키마 검증
 - **Axios**: HTTP 클라이언트
-- **Jest**: 테스트 프레임워크 (48개 테스트, 높은 커버리지)
+- **Jest**: 테스트 프레임워크 (112개 테스트, Jira 도구 100% 커버리지)
 
 ## 라이선스
 

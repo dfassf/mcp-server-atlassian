@@ -17,7 +17,7 @@ MCP(Model Context Protocol)는 AI 툴이 외부 시스템과 상호작용할 수
 4. 서버는 Atlassian API를 호출하고 결과를 AI에게 반환
 
 **제공하는 도구:**
-- **Jira 도구 29개**: 이슈 검색/생성/수정/삭제, 상태 변경, 댓글 관리, 이슈 연결, 메타데이터 조회, 대량 생성, Agile 보드/스프린트 관리, 작업 로그, 이슈 복제 등
+- **Jira 도구 28개**: 이슈 검색/생성/수정/삭제, 상태 변경, 댓글 관리, 이슈 연결, 메타데이터 조회, 대량 생성, Agile 보드/스프린트 관리, 작업 로그, 이슈 복제 등
 - **Confluence 도구 6개**: 페이지 검색/생성/수정/삭제, 댓글 조회 등
 
 이를 통해 AI 툴이 자연어로 "PROJ-123 이슈를 진행 중으로 변경해줘"라고 요청하면, 서버가 자동으로 해당 이슈의 상태를 변경할 수 있습니다.
@@ -136,9 +136,9 @@ CONFLUENCE_API_TOKEN=your_api_token
    - 도구 목록 및 실행 핸들러 등록
 
 2. **도구 등록**:
-   - Jira 도구: `JiraToolsService.getTools()`로 29개 도구 제공
+   - Jira 도구: `JiraToolsService.getTools()`로 28개 도구 제공
    - Confluence 도구: `ConfluenceToolsService.getTools()`로 6개 도구 제공
-   - 총 35개 도구를 AI 툴에 노출
+   - 총 34개 도구를 AI 툴에 노출
 
 3. **도구 실행**:
    - AI가 도구 호출 요청 시 `CallToolRequestSchema` 핸들러가 실행
@@ -216,11 +216,11 @@ graph TB
     
     subgraph "MCP 서버"
         MCP[McpService<br/>MCP Server]
-        Tools[Tools Registry<br/>35개 도구]
+        Tools[Tools Registry<br/>34개 도구]
     end
     
     subgraph "도구 레이어"
-        JiraTools[JiraToolsService<br/>29개 도구]
+        JiraTools[JiraToolsService<br/>28개 도구]
         ConfluenceTools[ConfluenceToolsService<br/>6개 도구]
     end
     

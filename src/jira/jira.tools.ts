@@ -484,6 +484,28 @@ export class JiraToolsService {
           required: ['issueKey'],
         },
       },
+      {
+        name: 'jira_add_attachment',
+        description: 'Add an attachment to a Jira issue (base64 encoded)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'Issue key (e.g., "PROJ-123")',
+            },
+            filename: {
+              type: 'string',
+              description: 'Filename for the attachment (e.g., "report.pdf")',
+            },
+            base64Content: {
+              type: 'string',
+              description: 'Base64-encoded file content',
+            },
+          },
+          required: ['issueKey', 'filename', 'base64Content'],
+        },
+      },
     ];
   }
 
@@ -546,6 +568,8 @@ export class JiraToolsService {
           return await this.cloneIssue(args);
         case 'jira_assign_to_me':
           return await this.assignToMe(args);
+        case 'jira_add_attachment':
+          return await this.addAttachment(args);
         default:
           return ToolResultUtil.errorResult(`Unknown Jira tool: ${name}`);
       }
@@ -939,7 +963,7 @@ export class JiraToolsService {
 
     let jql = 'assignee = currentUser()';
     if (status) {
-      jql += ` AND status = "${status}"`;
+      jql += ` AND status = "${this.escapeJqlString(status)}"`;
     }
     jql += ' ORDER BY updated DESC';
 
@@ -1078,13 +1102,17 @@ export class JiraToolsService {
     });
     const { projectKey } = schema.parse(args);
 
+    if (!this.isValidProjectKey(projectKey)) {
+      return ToolResultUtil.errorResult(`Invalid project key format: ${projectKey}`);
+    }
+
     const statuses = ['해야 할 일', '진행 중', '완료'];
     const summary: Record<string, number> = {};
     let total = 0;
 
     for (const status of statuses) {
       const result = await this.jiraService.search(
-        `project = ${projectKey} AND status = "${status}"`,
+        `project = ${projectKey} AND status = "${this.escapeJqlString(status)}"`,
         0,
       );
       summary[status] = result.issues.length;
@@ -1141,6 +1169,28 @@ export class JiraToolsService {
     });
 
     return ToolResultUtil.textResult(`Assigned ${issueKey} to ${currentUser.displayName}`);
+  }
+
+  private async addAttachment(args: unknown): Promise<ToolResult> {
+    const schema = z.object({
+      issueKey: z.string(),
+      filename: z.string(),
+      base64Content: z.string(),
+    });
+    const { issueKey, filename, base64Content } = schema.parse(args);
+
+    await this.jiraService.addAttachment(issueKey, filename, base64Content);
+    return ToolResultUtil.textResult(`Attachment "${filename}" added to ${issueKey}`);
+  }
+
+  /** JQL 문자열 값 이스케이프 (쌍따옴표 내부에서 사용) */
+  private escapeJqlString(value: string): string {
+    return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  }
+
+  /** 프로젝트 키 형식 검증 */
+  private isValidProjectKey(key: string): boolean {
+    return /^[A-Z][A-Z0-9_]+$/i.test(key);
   }
 
 }

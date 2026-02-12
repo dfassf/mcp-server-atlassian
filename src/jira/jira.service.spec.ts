@@ -576,4 +576,18 @@ describe('JiraService', () => {
       });
     });
   });
+
+  describe('addAttachment', () => {
+    it('should add attachment with FormData', async () => {
+      httpService.post.mockResolvedValue(undefined);
+
+      await service.addAttachment('TEST-1', 'report.pdf', 'dGVzdA==');
+      expect(httpService.post).toHaveBeenCalledWith(
+        'jira',
+        '/rest/api/3/issue/TEST-1/attachments',
+        expect.any(FormData),
+        { headers: { 'X-Atlassian-Token': 'no-check' } },
+      );
+    });
+  });
 });

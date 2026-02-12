@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ConfluenceService } from './confluence.service';
 import { Tool, ToolResult } from '../types/mcp.types';
 import { ToolResultUtil } from '../common/utils/tool-result.util';
+import { ConfluenceApiError } from '../common/errors/atlassian-api.error';
 
 @Injectable()
 export class ConfluenceToolsService {
@@ -118,6 +119,28 @@ export class ConfluenceToolsService {
           required: ['pageId'],
         },
       },
+      {
+        name: 'confluence_create_space',
+        description: 'Create a new Confluence space',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            key: {
+              type: 'string',
+              description: 'Space key (e.g., "AIBIO") - uppercase, no spaces',
+            },
+            name: {
+              type: 'string',
+              description: 'Space name (e.g., "AIBIO Project")',
+            },
+            description: {
+              type: 'string',
+              description: 'Space description (optional)',
+            },
+          },
+          required: ['key', 'name'],
+        },
+      },
     ];
   }
 
@@ -125,21 +148,28 @@ export class ConfluenceToolsService {
     try {
       switch (name) {
         case 'confluence_search':
-          return this.search(args);
+          return await this.search(args);
         case 'confluence_get_page':
-          return this.getPage(args);
+          return await this.getPage(args);
         case 'confluence_create_page':
-          return this.createPage(args);
+          return await this.createPage(args);
         case 'confluence_update_page':
-          return this.updatePage(args);
+          return await this.updatePage(args);
         case 'confluence_delete_page':
-          return this.deletePage(args);
+          return await this.deletePage(args);
         case 'confluence_get_comments':
-          return this.getComments(args);
+          return await this.getComments(args);
+        case 'confluence_create_space':
+          return await this.createSpace(args);
         default:
           return ToolResultUtil.errorResult(`Unknown Confluence tool: ${name}`);
       }
     } catch (error) {
+      if (error instanceof ConfluenceApiError) {
+        return ToolResultUtil.errorResult(
+          `${error.message} (Code: ${error.code}${error.statusCode ? `, Status: ${error.statusCode}` : ''})`,
+        );
+      }
       return ToolResultUtil.errorResult(error instanceof Error ? error.message : String(error));
     }
   }
@@ -191,6 +221,7 @@ export class ConfluenceToolsService {
     return ToolResultUtil.textResult(`Page created: ${page.title} (ID: ${page.id})`);
   }
 
+  /** 페이지 수정 (409 Conflict 시 1회 재시도) */
   private async updatePage(args: unknown): Promise<ToolResult> {
     const schema = z.object({
       pageId: z.string(),
@@ -202,7 +233,21 @@ export class ConfluenceToolsService {
     const currentPage = await this.confluenceService.getPage(pageId);
     const currentVersion = currentPage.version?.number || 1;
 
-    await this.confluenceService.updatePage(pageId, title, content, currentVersion);
+    try {
+      await this.confluenceService.updatePage(pageId, title, content, currentVersion);
+      return ToolResultUtil.textResult(`Page ${pageId} updated successfully`);
+    } catch (error) {
+      const isVersionConflict =
+        error instanceof Error &&
+        'statusCode' in error &&
+        (error as { statusCode?: number }).statusCode === 409;
+      if (!isVersionConflict) throw error;
+    }
+
+    // 409 Conflict → 최신 버전으로 재시도
+    const retryPage = await this.confluenceService.getPage(pageId);
+    const retryVersion = retryPage.version?.number || 1;
+    await this.confluenceService.updatePage(pageId, title, content, retryVersion);
     return ToolResultUtil.textResult(`Page ${pageId} updated successfully`);
   }
 
@@ -226,6 +271,18 @@ export class ConfluenceToolsService {
       created: c.version?.when,
     }));
     return ToolResultUtil.textResult(JSON.stringify({ comments }, null, 2));
+  }
+
+  private async createSpace(args: unknown): Promise<ToolResult> {
+    const schema = z.object({
+      key: z.string(),
+      name: z.string(),
+      description: z.string().optional(),
+    });
+    const { key, name, description } = schema.parse(args);
+
+    const space = await this.confluenceService.createSpace(key, name, description);
+    return ToolResultUtil.textResult(`Space created: ${space.name} (Key: ${space.key})`);
   }
 
 }

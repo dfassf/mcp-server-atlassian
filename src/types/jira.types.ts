@@ -32,6 +32,13 @@ export interface JiraProject {
   projectTypeKey?: string;
 }
 
+export interface JiraIssueLink {
+  id: string;
+  type: { name: string; inward: string; outward: string };
+  inwardIssue?: { key: string; fields?: { summary?: string; status?: JiraStatus } };
+  outwardIssue?: { key: string; fields?: { summary?: string; status?: JiraStatus } };
+}
+
 export interface JiraIssueFields {
   summary: string;
   description?: unknown;
@@ -45,6 +52,7 @@ export interface JiraIssueFields {
   updated?: string;
   labels?: string[];
   components?: Array<{ name: string }>;
+  issuelinks?: JiraIssueLink[];
 }
 
 export interface JiraIssue {
@@ -56,6 +64,7 @@ export interface JiraIssue {
 
 export interface JiraSearchResult {
   issues: JiraIssue[];
+  total?: number;
   nextPageToken?: string;
   isLast?: boolean;
 }

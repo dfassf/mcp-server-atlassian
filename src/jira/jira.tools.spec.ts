@@ -37,6 +37,7 @@ describe('JiraToolsService', () => {
       moveIssuesToSprint: jest.fn(),
       getWorklogs: jest.fn(),
       addWorklog: jest.fn(),
+      addAttachment: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -1117,6 +1118,42 @@ describe('JiraToolsService', () => {
       expect(jiraService.updateIssue).toHaveBeenCalledWith('TEST-1', {
         assignee: { id: '123' },
       });
+    });
+  });
+
+  describe('jira_add_attachment', () => {
+    it('should add attachment to issue', async () => {
+      jiraService.addAttachment.mockResolvedValue(undefined);
+
+      const result = await service.executeTool('jira_add_attachment', {
+        issueKey: 'TEST-1',
+        filename: 'report.pdf',
+        base64Content: 'dGVzdA==',
+      });
+      expect(result.content[0].text).toContain('report.pdf');
+      expect(result.content[0].text).toContain('TEST-1');
+      expect(jiraService.addAttachment).toHaveBeenCalledWith('TEST-1', 'report.pdf', 'dGVzdA==');
+    });
+  });
+
+  describe('jira_get_project_summary with invalid key', () => {
+    it('should reject invalid project key', async () => {
+      const result = await service.executeTool('jira_get_project_summary', { projectKey: '123invalid' });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Invalid project key');
+    });
+  });
+
+  describe('jira_get_my_issues with escaped status', () => {
+    it('should escape JQL special characters in status', async () => {
+      const mockResult = { issues: [], isLast: true };
+      jiraService.search.mockResolvedValue(mockResult);
+
+      await service.executeTool('jira_get_my_issues', { status: 'In "Progress"' });
+      expect(jiraService.search).toHaveBeenCalledWith(
+        expect.stringContaining('In \\"Progress\\"'),
+        50,
+      );
     });
   });
 });

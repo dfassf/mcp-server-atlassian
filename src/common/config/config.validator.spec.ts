@@ -87,5 +87,35 @@ describe('ConfigValidator', () => {
 
       expect(() => validator.validate()).not.toThrow();
     });
+
+    it('should pass when OAuth client_id and client_secret are set', () => {
+      jest.spyOn(configService, 'get').mockImplementation((key: string) => {
+        if (key === 'oauth.clientId') return 'oauth-client-id';
+        if (key === 'oauth.clientSecret') return 'oauth-client-secret';
+        return undefined;
+      });
+
+      expect(() => validator.validate()).not.toThrow();
+    });
+
+    it('should throw when OAuth client_id is set but client_secret is missing', () => {
+      jest.spyOn(configService, 'get').mockImplementation((key: string) => {
+        if (key === 'oauth.clientId') return 'oauth-client-id';
+        return undefined;
+      });
+
+      expect(() => validator.validate()).toThrow('ATLASSIAN_OAUTH_CLIENT_SECRET must be provided');
+    });
+
+    it('should skip Jira/Confluence URL validation in OAuth mode', () => {
+      jest.spyOn(configService, 'get').mockImplementation((key: string) => {
+        if (key === 'oauth.clientId') return 'oauth-client-id';
+        if (key === 'oauth.clientSecret') return 'oauth-client-secret';
+        // JIRA_URL, CONFLUENCE_URL 없어도 통과해야 함
+        return undefined;
+      });
+
+      expect(() => validator.validate()).not.toThrow();
+    });
   });
 });

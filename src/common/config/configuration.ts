@@ -11,6 +11,12 @@ export default () => ({
     apiToken: process.env.CONFLUENCE_API_TOKEN,
     personalToken: process.env.CONFLUENCE_PERSONAL_TOKEN,
   },
+  oauth: {
+    clientId: process.env.ATLASSIAN_OAUTH_CLIENT_ID,
+    clientSecret: process.env.ATLASSIAN_OAUTH_CLIENT_SECRET,
+    callbackPort: parseInt(process.env.OAUTH_CALLBACK_PORT || '18080', 10),
+    siteName: process.env.ATLASSIAN_SITE_NAME,
+  },
   mcp: {
     transport: process.env.MCP_TRANSPORT || 'stdio',
   },

@@ -109,19 +109,79 @@ npm run build
 
 ## 설정
 
-`.env` 파일 생성:
+3가지 인증 방식 중 하나를 선택하여 `.env` 파일을 설정합니다.
+
+### 방식 1: Basic Auth (Cloud)
 
 ```env
-# Jira Cloud
 JIRA_URL=https://your-company.atlassian.net
 JIRA_USERNAME=your.email@company.com
 JIRA_API_TOKEN=your_api_token
 
-# Confluence Cloud
 CONFLUENCE_URL=https://your-company.atlassian.net/wiki
 CONFLUENCE_USERNAME=your.email@company.com
 CONFLUENCE_API_TOKEN=your_api_token
 ```
+
+### 방식 2: PAT (Server/Data Center)
+
+```env
+JIRA_URL=https://your-jira-server.com
+JIRA_PERSONAL_TOKEN=your_personal_access_token
+
+CONFLUENCE_URL=https://your-confluence-server.com/wiki
+CONFLUENCE_PERSONAL_TOKEN=your_personal_access_token
+```
+
+### 방식 3: OAuth 2.0 (Cloud)
+
+URL 설정 불필요 — OAuth 인증 후 자동으로 설정됩니다.
+
+```env
+ATLASSIAN_OAUTH_CLIENT_ID=your_client_id
+ATLASSIAN_OAUTH_CLIENT_SECRET=your_client_secret
+# OAUTH_CALLBACK_PORT=18080          # 기본값 18080
+# ATLASSIAN_SITE_NAME=your-site-name # 여러 사이트일 때만 필요
+```
+
+#### OAuth 앱 등록 (Atlassian Developer Console)
+
+1. https://developer.atlassian.com/console/myapps/ 에서 앱 생성
+2. **Authorization** 탭:
+   - OAuth 2.0 (3LO) 추가
+   - Callback URL: `http://localhost:18080/callback`
+3. **Permissions** 탭에서 아래 스코프 추가:
+
+   **Jira:**
+   | 스코프 | 설명 |
+   |--------|------|
+   | `read:jira-work` | 이슈, 프로젝트, 보드 조회 |
+   | `write:jira-work` | 이슈 생성/수정/삭제, 댓글, 상태변경 |
+   | `read:jira-user` | 사용자 정보 조회 (assignee 검색 등) |
+   | `manage:jira-project` | 프로젝트 관리 |
+
+   **Confluence:**
+   | 스코프 | 설명 |
+   |--------|------|
+   | `read:confluence-content.all` | 페이지/블로그 조회 |
+   | `write:confluence-content` | 페이지 생성/수정/삭제 |
+   | `read:confluence-space.summary` | 스페이스 목록 조회 |
+   | `write:confluence-file` | 첨부파일 업로드 |
+   | `read:confluence-user` | 사용자 정보 조회 |
+
+4. **Settings** 탭에서 Client ID / Client Secret 복사 → `.env`에 설정
+
+#### OAuth 플로우
+
+```
+npm start → 토큰 없음 감지 → 브라우저에 인증 URL 자동 오픈
+→ Atlassian에서 권한 허용 → localhost:18080/callback으로 리다이렉트
+→ 토큰 교환 → ~/.mcp-atlassian/tokens.json에 저장 → MCP 서버 시작
+```
+
+- 재시작 시 토큰 파일에서 자동 로드 (브라우저 안 열림)
+- access_token 만료 시 자동 갱신 (1시간마다)
+- refresh_token 만료 시 (90일) 재인증 필요
 
 ## 사용법
 

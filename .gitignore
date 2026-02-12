@@ -17,6 +17,7 @@ dist/
 
 # Personal config
 SETUP.md
+atlassian-app-secret.txt
 
 # Logs
 logs/

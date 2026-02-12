@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 import { AtlassianHttpService } from './atlassian-http.service';
 import { LoggerService } from '../logger/logger.service';
+import { OAuthService } from '../oauth/oauth.service';
+import { TokenStoreService } from '../oauth/token-store.service';
 import configuration from '../config/configuration';
 
 jest.mock('axios');
@@ -55,7 +57,7 @@ describe('AtlassianHttpService', () => {
       });
 
       const logger = new LoggerService();
-      const newService = new AtlassianHttpService(configService, logger);
+      const newService = new AtlassianHttpService(configService, undefined, undefined, logger);
       expect(mockedAxios.create).toHaveBeenCalled();
     });
 
@@ -66,7 +68,7 @@ describe('AtlassianHttpService', () => {
       });
 
       const logger = new LoggerService();
-      expect(() => new AtlassianHttpService(configService, logger)).toThrow();
+      expect(() => new AtlassianHttpService(configService, undefined, undefined, logger)).toThrow();
     });
 
     it('should use personal token when provided', () => {
@@ -77,7 +79,7 @@ describe('AtlassianHttpService', () => {
       });
 
       const logger = new LoggerService();
-      new AtlassianHttpService(configService, logger);
+      new AtlassianHttpService(configService, undefined, undefined, logger);
       expect(mockedAxios.create).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: expect.objectContaining({
@@ -96,7 +98,7 @@ describe('AtlassianHttpService', () => {
       });
 
       const logger = new LoggerService();
-      new AtlassianHttpService(configService, logger);
+      new AtlassianHttpService(configService, undefined, undefined, logger);
       expect(mockedAxios.create).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: expect.objectContaining({
@@ -104,6 +106,20 @@ describe('AtlassianHttpService', () => {
           }),
         }),
       );
+    });
+
+    it('should skip client initialization in OAuth mode', () => {
+      jest.spyOn(configService, 'get').mockImplementation((key: string) => {
+        if (key === 'oauth.clientId') return 'oauth-client-id';
+        return undefined;
+      });
+
+      mockedAxios.create.mockClear();
+      const logger = new LoggerService();
+      const oauthService = new AtlassianHttpService(configService, undefined, undefined, logger);
+      // OAuth 모드에서는 constructor에서 createClient를 호출하지 않음
+      expect(mockedAxios.create).not.toHaveBeenCalled();
+      expect(oauthService.isOAuthMode()).toBe(true);
     });
   });
 

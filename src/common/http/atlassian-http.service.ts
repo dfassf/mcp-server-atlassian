@@ -1,16 +1,17 @@
 import { Injectable, Optional, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios, { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
+import { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { AtlassianApiError, JiraApiError, ConfluenceApiError } from '../errors/atlassian-api.error';
 import { LoggerService } from '../logger/logger.service';
 import { OAuthService } from '../oauth/oauth.service';
 import { TokenStoreService } from '../oauth/token-store.service';
+import { AtlassianProduct, createOAuthClient, createBasicAuthClient } from './atlassian-client.factory';
 
-export type AtlassianProduct = 'jira' | 'confluence';
+export { AtlassianProduct } from './atlassian-client.factory';
 
 interface RetryConfig {
   maxRetries: number;
-  retryDelay: number; // milliseconds
+  retryDelay: number;
   retryableStatusCodes: number[];
 }
 
@@ -34,18 +35,15 @@ export class AtlassianHttpService {
       retryableStatusCodes: [429, 500, 502, 503, 504],
     };
 
-    // Basic Auth / PAT 모드에서만 동기 초기화
     if (!this.isOAuthMode()) {
       this.initializeClients();
     }
   }
 
-  /** OAuth 모드 여부 확인 */
   isOAuthMode(): boolean {
     return !!this.configService.get<string>('oauth.clientId');
   }
 
-  /** OAuth 클라이언트 초기화 (CommonModule.onModuleInit에서 호출) */
   async initializeOAuthClients(): Promise<void> {
     if (!this.isOAuthMode()) return;
 
@@ -53,7 +51,6 @@ export class AtlassianHttpService {
       throw new Error('OAuth 서비스가 주입되지 않았습니다.');
     }
 
-    // 토큰 로드 또는 인증 플로우 실행
     let tokens = await this.tokenStore.loadTokens();
     if (!tokens) {
       tokens = await this.oauthService.performAuthorizationFlow();
@@ -63,171 +60,41 @@ export class AtlassianHttpService {
 
     const timeout = this.configService.get<number>('http.timeout') || 30000;
 
-    // Jira OAuth 클라이언트
-    const jiraClient = this.createOAuthClient(
+    this.clients.set('jira', createOAuthClient(
       `https://api.atlassian.com/ex/jira/${tokens.cloudId}`,
-      'jira',
-      timeout,
-    );
-    this.clients.set('jira', jiraClient);
+      'jira', timeout, this.oauthService, this.logger,
+    ));
     this.logger.log(`Jira OAuth client initialized (${tokens.siteName})`);
 
-    // Confluence OAuth 클라이언트
-    const confluenceClient = this.createOAuthClient(
+    this.clients.set('confluence', createOAuthClient(
       `https://api.atlassian.com/ex/confluence/${tokens.cloudId}`,
-      'confluence',
-      timeout,
-    );
-    this.clients.set('confluence', confluenceClient);
+      'confluence', timeout, this.oauthService, this.logger,
+    ));
     this.logger.log(`Confluence OAuth client initialized (${tokens.siteName})`);
   }
 
   initializeClients() {
-    const jiraUrl = this.configService.get<string>('jira.url');
-    const jiraUsername = this.configService.get<string>('jira.username');
-    const jiraToken = this.configService.get<string>('jira.apiToken');
-    const jiraPersonalToken = this.configService.get<string>('jira.personalToken');
+    const timeout = this.configService.get<number>('http.timeout') || 30000;
 
+    const jiraUrl = this.configService.get<string>('jira.url');
     if (jiraUrl) {
-      this.clients.set(
-        'jira',
-        this.createClient(jiraUrl, jiraUsername, jiraToken, jiraPersonalToken, 'jira'),
-      );
-      this.logger.log('Jira client initialized', 'AtlassianHttpService');
+      this.clients.set('jira', createBasicAuthClient(jiraUrl, 'jira', timeout, {
+        username: this.configService.get<string>('jira.username'),
+        apiToken: this.configService.get<string>('jira.apiToken'),
+        personalToken: this.configService.get<string>('jira.personalToken'),
+      }, this.logger));
+      this.logger.log('Jira client initialized');
     }
 
     const confluenceUrl = this.configService.get<string>('confluence.url');
-    const confluenceUsername = this.configService.get<string>('confluence.username');
-    const confluenceToken = this.configService.get<string>('confluence.apiToken');
-    const confluencePersonalToken = this.configService.get<string>('confluence.personalToken');
-
     if (confluenceUrl) {
-      this.clients.set(
-        'confluence',
-        this.createClient(confluenceUrl, confluenceUsername, confluenceToken, confluencePersonalToken, 'confluence'),
-      );
-      this.logger.log('Confluence client initialized', 'AtlassianHttpService');
+      this.clients.set('confluence', createBasicAuthClient(confluenceUrl, 'confluence', timeout, {
+        username: this.configService.get<string>('confluence.username'),
+        apiToken: this.configService.get<string>('confluence.apiToken'),
+        personalToken: this.configService.get<string>('confluence.personalToken'),
+      }, this.logger));
+      this.logger.log('Confluence client initialized');
     }
-  }
-
-  /** OAuth용 Axios 클라이언트 생성 (토큰 자동 갱신 interceptor 포함) */
-  private createOAuthClient(
-    baseUrl: string,
-    product: AtlassianProduct,
-    timeout: number,
-  ): AxiosInstance {
-    const client = axios.create({
-      baseURL: baseUrl,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      timeout,
-    });
-
-    // Request interceptor: 매 요청 전 유효한 토큰 주입
-    client.interceptors.request.use(
-      async (config: InternalAxiosRequestConfig) => {
-        const accessToken = await this.oauthService!.getValidAccessToken();
-        config.headers.Authorization = `Bearer ${accessToken}`;
-        const method = config.method?.toUpperCase() || 'UNKNOWN';
-        const url = config.url || '';
-        this.logger.debug(`${method} ${url}`, product);
-        return config;
-      },
-      (error) => {
-        this.logger.error(`Request setup error: ${error.message}`, error.stack, product);
-        throw error;
-      },
-    );
-
-    // Response interceptor: 로깅
-    client.interceptors.response.use(
-      (response) => {
-        const method = response.config.method?.toUpperCase() || 'UNKNOWN';
-        const url = response.config.url || '';
-        this.logger.debug(`${method} ${url} - ${response.status}`, product);
-        return response;
-      },
-      (error) => {
-        const method = error.config?.method?.toUpperCase() || 'UNKNOWN';
-        const url = error.config?.url || '';
-        this.logger.error(
-          `${method} ${url} failed: ${error.message}`,
-          error.stack,
-          product,
-        );
-        throw error;
-      },
-    );
-
-    return client;
-  }
-
-  private createClient(
-    baseUrl: string,
-    username?: string,
-    apiToken?: string,
-    personalToken?: string,
-    product?: AtlassianProduct,
-  ): AxiosInstance {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-
-    if (personalToken) {
-      headers['Authorization'] = `Bearer ${personalToken}`;
-    } else if (username && apiToken) {
-      const auth = Buffer.from(`${username}:${apiToken}`).toString('base64');
-      headers['Authorization'] = `Basic ${auth}`;
-    } else {
-      throw new AtlassianApiError(
-        AtlassianApiError.fromStatusCode(401),
-        'Authentication required: either personalToken or (username + apiToken) must be provided',
-      );
-    }
-
-    const timeout = this.configService.get<number>('http.timeout') || 30000;
-    const client = axios.create({
-      baseURL: baseUrl,
-      headers,
-      timeout,
-    });
-
-    client.interceptors.request.use(
-      (config: InternalAxiosRequestConfig) => {
-        const method = config.method?.toUpperCase() || 'UNKNOWN';
-        const url = config.url || '';
-        this.logger.debug(`${method} ${url}`, product);
-        return config;
-      },
-      (error) => {
-        this.logger.error(`Request setup error: ${error.message}`, error.stack, product);
-        throw error;
-      },
-    );
-
-    client.interceptors.response.use(
-      (response) => {
-        const method = response.config.method?.toUpperCase() || 'UNKNOWN';
-        const url = response.config.url || '';
-        this.logger.debug(`${method} ${url} - ${response.status}`, product);
-        return response;
-      },
-      (error) => {
-        const method = error.config?.method?.toUpperCase() || 'UNKNOWN';
-        const url = error.config?.url || '';
-        this.logger.error(
-          `${method} ${url} failed: ${error.message}`,
-          error.stack,
-          product,
-        );
-        throw error;
-      },
-    );
-
-    return client;
   }
 
   getClient(product: AtlassianProduct): AxiosInstance {
@@ -270,16 +137,12 @@ export class AtlassianHttpService {
           product,
         );
 
-        await this.sleep(delay);
+        await new Promise((resolve) => setTimeout(resolve, delay));
         return this.executeWithRetry(product, requestFn, attempt + 1);
       }
 
       throw apiError;
     }
-  }
-
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   async get<T>(product: AtlassianProduct, path: string, config?: AxiosRequestConfig): Promise<T> {
@@ -289,24 +152,14 @@ export class AtlassianHttpService {
     });
   }
 
-  async post<T>(
-    product: AtlassianProduct,
-    path: string,
-    data?: unknown,
-    config?: AxiosRequestConfig,
-  ): Promise<T> {
+  async post<T>(product: AtlassianProduct, path: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
     return this.executeWithRetry(product, async () => {
       const response = await this.getClient(product).post<T>(path, data, config);
       return response.data;
     });
   }
 
-  async put<T>(
-    product: AtlassianProduct,
-    path: string,
-    data?: unknown,
-    config?: AxiosRequestConfig,
-  ): Promise<T> {
+  async put<T>(product: AtlassianProduct, path: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
     return this.executeWithRetry(product, async () => {
       const response = await this.getClient(product).put<T>(path, data, config);
       return response.data;

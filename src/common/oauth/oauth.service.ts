@@ -1,11 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as http from 'http';
 import * as crypto from 'crypto';
-import { exec } from 'child_process';
 import axios from 'axios';
 import { TokenStoreService } from './token-store.service';
 import { LoggerService } from '../logger/logger.service';
+import { waitForOAuthCallback } from './oauth-callback.util';
 import {
   OAuthTokens,
   OAuthTokenResponse,
@@ -29,7 +28,6 @@ const DEFAULT_SCOPES = [
   'read:confluence-user',
 ];
 
-const AUTH_TIMEOUT_MS = 3 * 60 * 1000; // 3분
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000; // 만료 5분 전 갱신
 
 @Injectable()
@@ -58,7 +56,9 @@ export class OAuthService {
     this.logger.log('OAuth 인증이 필요합니다. 브라우저에서 아래 URL을 열어주세요:');
     this.logger.log(authUrl);
 
-    const code = await this.waitForCallback(callbackPort, state, authUrl);
+    const code = await waitForOAuthCallback(callbackPort, state, authUrl, () => {
+      this.logger.warn('브라우저를 자동으로 열 수 없습니다. 위 URL을 수동으로 열어주세요.');
+    });
 
     const tokenResponse = await this.exchangeCodeForTokens(
       clientId,
@@ -144,69 +144,6 @@ export class OAuthService {
     return `${AUTH_URL}?${params.toString()}`;
   }
 
-  /** 임시 HTTP 서버로 OAuth 콜백 수신 */
-  private waitForCallback(port: number, expectedState: string, authUrl: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        server.close();
-        reject(new Error(`OAuth 인증 타임아웃 (${AUTH_TIMEOUT_MS / 1000}초)`));
-      }, AUTH_TIMEOUT_MS);
-
-      const server = http.createServer((req, res) => {
-        const url = new URL(req.url!, `http://localhost:${port}`);
-
-        if (url.pathname !== '/callback') {
-          res.writeHead(404);
-          res.end('Not found');
-          return;
-        }
-
-        const code = url.searchParams.get('code');
-        const state = url.searchParams.get('state');
-        const error = url.searchParams.get('error');
-
-        if (error) {
-          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end('<h1>인증 실패</h1><p>브라우저를 닫아도 됩니다.</p>');
-          clearTimeout(timeout);
-          server.close();
-          reject(new Error(`OAuth 인증 거부: ${error}`));
-          return;
-        }
-
-        if (!code || state !== expectedState) {
-          res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end('<h1>잘못된 요청</h1>');
-          clearTimeout(timeout);
-          server.close();
-          reject(new Error('OAuth state 불일치 또는 code 누락'));
-          return;
-        }
-
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>MCP Atlassian</title></head>
-<body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
-<div style="text-align:center;background:#fff;padding:48px 64px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08)">
-<svg width="64" height="64" viewBox="0 0 24 24" fill="none" style="margin-bottom:16px"><circle cx="12" cy="12" r="12" fill="#36B37E"/><path d="M7 12.5l3 3 7-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-<h1 style="margin:0 0 8px;font-size:24px;color:#172B4D">인증 완료</h1>
-<p style="margin:0;color:#6B778C;font-size:15px">이 창을 닫고 터미널로 돌아가세요.</p>
-</div></body></html>`);
-        clearTimeout(timeout);
-        server.close();
-        resolve(code);
-      });
-
-      server.listen(port, () => {
-        this.openBrowser(authUrl);
-      });
-
-      server.on('error', (err) => {
-        clearTimeout(timeout);
-        reject(new Error(`콜백 서버 시작 실패 (포트 ${port}): ${err.message}`));
-      });
-    });
-  }
-
   /** 인가 코드 → 토큰 교환 */
   private async exchangeCodeForTokens(
     clientId: string,
@@ -284,21 +221,5 @@ export class OAuthService {
     );
     this.logger.log(`기본값 "${resources[0].name}" 사용. ATLASSIAN_SITE_NAME으로 변경 가능.`);
     return resources[0];
-  }
-
-  /** 브라우저 열기 */
-  private openBrowser(authUrl: string): void {
-    const command =
-      process.platform === 'darwin'
-        ? `open "${authUrl}"`
-        : process.platform === 'win32'
-          ? `start "" "${authUrl}"`
-          : `xdg-open "${authUrl}"`;
-
-    exec(command, (err) => {
-      if (err) {
-        this.logger.warn('브라우저를 자동으로 열 수 없습니다. 위 URL을 수동으로 열어주세요.');
-      }
-    });
   }
 }
